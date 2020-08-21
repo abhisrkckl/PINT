@@ -8,10 +8,10 @@ import numpy as np
 from pint import GMsun, Tsun, ls
 
 from .binary_generic import PSR_BINARY
-from .ELL1_model import ELL1Model
+from .ELL1_model import ELL1model
 
 
-class ELL1kModel(ELL1Model):
+class ELL1kmodel(ELL1model):
     """This is a class for ELL1k pulsar binary model.
 
     ELL1k model is ELL1 model with 'exact' treatment of advance of periastron.
@@ -21,7 +21,7 @@ class ELL1kModel(ELL1Model):
     """
 
     def __init__(self):
-        super(ELL1kModel, self).__init__()
+        super(ELL1kmodel, self).__init__()
         self.binary_name = "ELL1k"
 
         self.binary_delay_funcs = [self.ELL1kdelay]

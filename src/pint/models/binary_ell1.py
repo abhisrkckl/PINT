@@ -10,6 +10,7 @@ from pint.models.pulsar_binary import PulsarBinary
 from pint.models.stand_alone_psr_binaries import binary_orbits as bo
 from pint.models.stand_alone_psr_binaries.ELL1_model import ELL1model
 from pint.models.stand_alone_psr_binaries.ELL1H_model import ELL1Hmodel
+from pint.models.stand_alone_psr_binaries.ELL1k_model import ELL1kmodel
 from pint.models.timing_model import MissingParameter
 from pint.utils import taylor_horner_deriv
 
@@ -71,7 +72,7 @@ class BinaryELL1Base(PulsarBinary):
             floatParameter(
                 name="EPS2DOT",
                 units="1e-12/s",
-                description="Second derivative of first Laplace-Lagrange parameter",
+                description="First derivative of second Laplace-Lagrange parameter",
                 long_double=True,
             )
         )
@@ -285,3 +286,95 @@ class BinaryELL1H(BinaryELL1Base):
         if self.STIGMA.quantity is not None:
             self.binary_instance.fit_params = ["H3", "STIGMA"]
             self.binary_instance.ds_func = self.binary_instance.delayS_H3_STIGMA_exact
+            
+class BinaryELL1k(BinaryELL1Base):
+    register = True
+
+    def __init__(self):
+        super(BinaryELL1k, self).__init__()
+        self.binary_model_name = "ELL1k"
+        self.binary_model_class = ELL1kmodel
+
+    def setup(self):
+        super(BinaryELL1k, self).setup()
+
+    def validate(self):
+        super(BinaryELL1k, self).validate()
+        
+        if self.EPS1DOT.quantity is not None:
+            warn("'EPS1DOT' will not be used in ELL1k model. ")
+        if self.EPS2DOT.quantity is not None:
+            warn("'EPS2DOT' will not be used in ELL1k model. ")
+
+    def change_binary_epoch(self, new_epoch):
+        """ Implements the correct expressions for updating EPS1 and EPS2 in ELL1k model.
+            Otherwise identical to the change_binary_epoch(..) function for ELL1 model.
+        """
+        
+        if isinstance(new_epoch, Time):
+            new_epoch = Time(new_epoch, scale="tdb", precision=9)
+        else:
+            new_epoch = Time(new_epoch, scale="tdb", format="mjd", precision=9)
+
+        try:
+            FB2 = self.FB2.quantity
+            log.warning(
+                "Ignoring orbital frequency derivatives higher than FB1"
+                "in computing new TASC"
+            )
+        except AttributeError:
+            pass
+
+        # Get PB and PBDOT from model
+        if self.PB.quantity is not None:
+            PB = self.PB.quantity
+            if self.PBDOT.quantity is not None:
+                PBDOT = self.PBDOT.quantity
+            else:
+                PBDOT = 0.0 * u.Unit("")
+        else:
+            PB = 1.0 / self.FB0.quantity
+            try:
+                PBDOT = -self.FB1.quantity / self.FB0.quantity ** 2
+            except AttributeError:
+                PBDOT = 0.0 * u.Unit("")
+
+        # Find closest periapsis time and reassign T0
+        tasc_ld = self.TASC.quantity.tdb.mjd_long
+        dt = (new_epoch.tdb.mjd_long - tasc_ld) * u.day
+        d_orbits = dt / PB - PBDOT * dt ** 2 / (2.0 * PB ** 2)
+        n_orbits = np.round(d_orbits.to(u.Unit("")))
+        dt_integer_orbits = PB * n_orbits + PB * PBDOT * n_orbits ** 2 / 2.0
+        self.TASC.quantity = self.TASC.quantity + dt_integer_orbits
+
+        # Update PB or FB0, FB1, etc.
+        if isinstance(self.binary_instance.orbits_cls, bo.OrbitPB):
+            dPB = PBDOT * dt_integer_orbits
+            self.PB.quantity = self.PB.quantity + dPB
+        else:
+            fbterms = [
+                getattr(self, k).quantity
+                for k in self.get_prefix_mapping("FB").values()
+            ]
+            fbterms = [0.0 * u.Unit("")] + fbterms
+
+            for n in range(len(fbterms) - 1):
+                cur_deriv = getattr(self, "FB{}".format(n))
+                cur_deriv.value = taylor_horner_deriv(
+                    dt.to(u.s), fbterms, deriv_order=n + 1
+                )
+
+        # Update EPS1, EPS2, and A1
+        if self.OMDOT.quantity is not None:
+            
+            eps1 = self.EPS1.quantity
+            eps2 = self.EPS2.quantity
+            omdot = self.OMDOT.quantity
+            tau = omdot*dt_integer_orbits
+            
+            self.EPS1.quantity = eps1*np.cos(tau) + eps2*np.sin(tau)
+            self.EPS2.quantity = eps2*np.cos(tau) - eps1*np.sin(tau)
+            
+        if self.A1DOT.quantity is not None:
+            dA1 = self.A1DOT.quantity * dt_integer_orbits
+            self.A1.quantity = self.A1.quantity + dA1
