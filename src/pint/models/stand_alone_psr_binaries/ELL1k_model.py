@@ -28,7 +28,7 @@ class ELL1kmodel(ELL1model):
         self.d_binarydelay_d_par_funcs = [self.d_ELL1kdelay_d_par]
 
     def tau(self):
-        return self.ttasc() * self.OMDOT.to(u.rad)
+        return self.ttasc() * self.OMDOT
 
     def eps1(self):
         return self.EPS1*np.cos(self.tau()) + self.EPS2*np.sin(self.tau())
