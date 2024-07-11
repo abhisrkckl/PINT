@@ -55,7 +55,6 @@ from typing import (
     Iterable,
     Type,
     Iterator,
-    Generator,
     Literal,
 )
 import uncertainties
@@ -75,7 +74,7 @@ import warnings
 import pint
 import pint.pulsar_ecliptic
 from pint.toa_select import TOASelect
-from pint.types import file_like, time_like, quantity_like
+from pint.types import file_like, quantity_like
 
 __all__ = [
     "PINTPrecisionError",
@@ -2396,7 +2395,7 @@ def info_string(
         else:
             s += f"{os.linesep}Comment: {comment}"
 
-    if (prefix_string is not None) and (len(prefix_string) > 0):
+    if prefix_string is not None and prefix_string != "":
         s = os.linesep.join([prefix_string + x for x in s.splitlines()])
     return s
 
@@ -3039,7 +3038,7 @@ def _get_wx2pl_lnlike(
     from pint.models.noise_model import powerlaw
     from pint import DMconst
 
-    assert component_name in ["WaveX", "DMWaveX"]
+    assert component_name in {"WaveX", "DMWaveX"}
     prefix = "WX" if component_name == "WaveX" else "DMWX"
 
     idxs = np.array(model.components[component_name].get_indices())
