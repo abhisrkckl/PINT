@@ -9,7 +9,7 @@ dispersion measures (:class:`pint.residuals.WidebandTOAResiduals`).
 
 import collections
 import copy
-from typing import Literal, Optional, Union
+from typing import Dict, Literal, Optional, Union
 import warnings
 
 import astropy.units as u
@@ -19,6 +19,7 @@ from loguru import logger as log
 
 from pint import dmu
 from pint.models.dispersion_model import Dispersion
+from pint.models.noise_model import CorrelatedNoiseComponent
 from pint.models.parameter import maskParameter
 from pint.models.timing_model import TimingModel
 from pint.phase import Phase
@@ -167,6 +168,12 @@ class Residuals:
         # A flag to identify if this residual object is combined with residual
         # class.
         self._is_combined = False
+
+        self.noise_ampls = {
+            component.category: np.zeros_like(component.get_noise_weights(toas)) << u.s
+            for component in model.NoiseComponent_list
+            if component.introduces_correlated_errors
+        }
 
     @property
     def resids(self) -> u.Quantity:
