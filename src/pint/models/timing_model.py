@@ -2610,8 +2610,7 @@ class TimingModel:
                         value2[pn] = str(otherpar.quantity)
                         if otherpar.quantity != par.quantity:
                             log.info(
-                                "Parameter %s not fit, but has changed between these models"
-                                % par.name
+                                f"Parameter {par.name} not fit, but has changed between these models"
                             )
                     else:
                         value2[pn] = "Missing"
@@ -2631,22 +2630,22 @@ class TimingModel:
                         par.uncertainty.to_value(uncertainty_unit),
                     )
 
-                    if otherpar is not None:
-                        if otherpar.uncertainty is not None:
-                            value2[pn] = "{:>16s} +/- {:7.2g}".format(
-                                str(otherpar.quantity),
-                                otherpar.uncertainty.to_value(uncertainty_unit),
-                            )
-                        else:
-                            # otherpar must have no uncertainty
-                            if otherpar.quantity is not None:
-                                value2[pn] = "{:>s}".format(str(otherpar.quantity))
-                            else:
-                                value2[pn] = "Missing"
-                    else:
+                    if otherpar is None:
                         value2[pn] = "Missing"
                         diff1[pn] = ""
                         diff2[pn] = ""
+                    elif otherpar.uncertainty is not None:
+                        value2[pn] = "{:>16s} +/- {:7.2g}".format(
+                            str(otherpar.quantity),
+                            otherpar.uncertainty.to_value(uncertainty_unit),
+                        )
+                    else:
+                        # otherpar must have no uncertainty
+                        value2[pn] = (
+                            "{:>s}".format(str(otherpar.quantity))
+                            if otherpar.quantity is not None
+                            else "Missing"
+                        )
                     if otherpar is not None and otherpar.quantity is not None:
                         diff = otherpar.quantity - par.quantity
                         if par.uncertainty is not None:
@@ -2712,8 +2711,7 @@ class TimingModel:
                                 )
                             else:
                                 log.warning(
-                                    "Parameter %s not fit, but has changed between these models"
-                                    % par.name
+                                    f"Parameter {par.name} not fit, but has changed between these models"
                                 )
                                 modifier[pn].append("change")
                         if (
@@ -2889,7 +2887,7 @@ class TimingModel:
                         "change" in m
                         or "diff1" in m
                         or "diff2" in m
-                        and not "unc_rat" in m
+                        and "unc_rat" not in m
                     ):
                         sout = colorize(sout, "red")
                     elif "diff2" in m:
@@ -3959,15 +3957,16 @@ class AllComponents:
             does not match the input parameter name that is going to be mapped
             to the input alias.
         """
-        if alias in alias_map.keys():
-            if param_name == alias_map[alias]:
-                return
-            else:
-                raise AliasConflict(
-                    f"Alias {alias} has been used by" f" parameter {param_name}."
-                )
-        else:
+        if (
+            alias in alias_map
+            and param_name == alias_map[alias]
+            or alias not in alias_map.keys()
+        ):
             return
+        else:
+            raise AliasConflict(
+                f"Alias {alias} has been used by" f" parameter {param_name}."
+            )
 
     @lazyproperty
     def _param_alias_map(self) -> Dict[str, str]:
@@ -4119,7 +4118,7 @@ class AllComponents:
                 "`BINARY  DDFWHE` is not supported, but the same model "
                 "is available as `BINARY  DDH`."
             )
-        elif system_name in ["MSS", "EH", "H88", "DDT", "BT1P", "BT2P"]:
+        elif system_name in {"MSS", "EH", "H88", "DDT", "BT1P", "BT2P"}:
             # Binary model list taken from
             # https://tempo.sourceforge.net/ref_man_sections/binary.txt
             raise UnknownBinaryModel(
