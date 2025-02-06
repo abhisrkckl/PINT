@@ -17,6 +17,7 @@ import numpy as np
 from scipy.linalg import LinAlgError
 from loguru import logger as log
 
+from pint import dmu
 from pint.models.dispersion_model import Dispersion
 from pint.models.parameter import maskParameter
 from pint.models.timing_model import TimingModel
@@ -1211,6 +1212,13 @@ class WidebandTOAResiduals(CombinedResiduals):
             self._chi2 = self.calc_chi2()
         assert self._chi2 is not None
         return self._chi2
+
+    def calc_combined_resids(self) -> np.ndarray:
+        """Returns the combined TOA and DM residuals as a numpy array.
+        The TOA residuals are in s and the DM residuals are in dmu."""
+        tres = self.toa.calc_time_resids().to_value(u.s)
+        dres = self.dm.calc_resids().to_value(dmu)
+        return np.hstack((tres, dres)).astype(float)
 
     def calc_chi2(self, full_cov=False) -> float:
         """Return the weighted chi-squared for the model and toas.
