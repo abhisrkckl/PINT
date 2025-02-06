@@ -1754,6 +1754,46 @@ class TimingModel:
         result = [nf(toas)[0] for nf in self.basis_funcs]
         return np.hstack(list(result))
 
+    def noise_model_wideband_designmatrix(self, toas: TOAs) -> Optional[np.ndarray]:
+        """Returns the design/basis matrix for all noise components for wideband TOAs.
+        Includes both TOA and DM partial derivatives. Returns None if no correlated noise
+        component is present."""
+        return (
+            np.hstack(
+                [
+                    nc.get_wideband_noise_basis(toas)
+                    for nc in self.NoiseComponent_list
+                    if nc.introduces_correlated_errors
+                ]
+            )
+            if self.has_correlated_errors
+            else None
+        )
+
+    def full_designmatrix(self, toas: TOAs) -> Union[
+        Tuple[np.ndarray, List[str], List[u.Unit]],
+        Tuple[np.ndarray, List[str], List[u.Unit], List[u.Unit]],
+    ]:
+        """Returns the full design matrix containing both the timing model design
+        matrix and the noise basis matrix. If the TOAs are wideband, the DM partial
+        derivatives are also included. The units are also returned."""
+        if not toas.is_wideband():
+            M_tm, par, M_units = self.designmatrix(toas)
+            M_nm = self.noise_model_designmatrix(toas)
+        else:
+            M_tm, par, M_units, M_units_d = self.wideband_designmatrix(toas)
+            M_nm = self.noise_model_wideband_designmatrix(toas)
+
+        M = np.hstack((M_tm, M_nm)) if M_nm is not None else M_tm
+
+        if M_nm is not None:
+            par.extend([f"_NOISE_{ii}" for ii in range(M_nm.shape[1])])
+            M_units.extend(np.repeat(u.dimensionless_unscaled, M_nm.shape[1]))
+            if toas.is_wideband():
+                M_units_d.extend(np.repeat(pint.dmu / u.s, M_nm.shape[1]))
+
+        return (M, par, M_units, M_units_d) if toas.is_wideband() else (M, par, M_units)
+
     def noise_model_basis_weight(self, toas: TOAs) -> np.ndarray:
         """Returns the joint weight vector for all noise components."""
         if len(self.basis_funcs) == 0:
