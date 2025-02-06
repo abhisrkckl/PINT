@@ -8,11 +8,13 @@ import numpy as np
 
 from loguru import logger as log
 
+from pint import DMconst, dmu
 from pint.models.parameter import floatParameter, maskParameter
 from pint.models.timing_model import Component
 
 
 class NoiseComponent(Component):
+    """Abstract base class for all noise components."""
 
     introduces_dm_errors = False
 
@@ -32,8 +34,48 @@ class NoiseComponent(Component):
         self.basis_funcs = []
 
 
-class ScaleToaError(NoiseComponent):
-    """Correct reported template fitting uncertainties.
+class WhiteNoiseComponent(NoiseComponent):
+    """Abstract base class for all white noise components."""
+
+    introduces_correlated_errors = False
+
+
+class CorrelatedNoiseComponent(NoiseComponent):
+    """Abstract base class for all correlated noise components."""
+
+    introduces_correlated_errors = True
+    is_time_correlated = False
+
+    def get_noise_basis(self, toas):
+        raise NotImplementedError
+
+    def get_noise_weights(self, toas):
+        raise NotImplementedError
+
+    def get_dm_noise_basis(self, toas):
+        """The DM part of the basis matrix for wideband datsets. This is non-zero
+        only for DM noise. The output is a numpy array but it has units of dmu/s
+        by convention since the noise amplitudes are defined to have dimensions of
+        time."""
+        toa_noise_basis = self.get_noise_basis(toas)
+        if self.introduces_dm_errors:
+            freqs = self._parent.barycentric_radio_freq(toas)
+            return (toa_noise_basis * (freqs**2 / DMconst)[:, None]).to_value(dmu / u.s)
+        else:
+            return np.zeros_like(toa_noise_basis)
+
+    def get_wideband_noise_basis(self, toas):
+        """The wideband noise basis including both TOA and DM parts. The TOA part
+        of the matrix is dimensionless but the DM part of the basis has units of
+        dmu/s."""
+        M_toa = self.get_noise_basis(toas)
+        M_dm = self.get_dm_noise_basis(toas)
+        return np.vstack((M_toa, M_dm))
+
+
+class ScaleToaError(WhiteNoiseComponent):
+    """Correct the reported TOA uncertainties. The corrections account for
+    imperfections in the TOA measurement and pulse jitter.
 
     Parameters supported:
 
@@ -218,7 +260,7 @@ class ScaleToaError(NoiseComponent):
         return result
 
 
-class ScaleDmError(NoiseComponent):
+class ScaleDmError(WhiteNoiseComponent):
     """Correction for estimated wideband DM measurement uncertainty.
 
     Parameters supported:
@@ -322,7 +364,7 @@ class ScaleDmError(NoiseComponent):
         return np.diag(scaled_sigma)
 
 
-class EcorrNoise(NoiseComponent):
+class EcorrNoise(CorrelatedNoiseComponent):
     """Noise correlated between nearby TOAs.
 
     This can occur, for example, if multiple TOAs were taken at different
@@ -445,7 +487,7 @@ class EcorrNoise(NoiseComponent):
         return np.dot(U * Jvec[None, :], U.T)
 
 
-class PLDMNoise(NoiseComponent):
+class PLDMNoise(CorrelatedNoiseComponent):
     """Model of DM variations as radio frequency-dependent noise with a power-law spectrum.
 
     Variations in DM over time result from both the proper motion of the
@@ -563,7 +605,7 @@ class PLDMNoise(NoiseComponent):
         return np.dot(Fmat * phi[None, :], Fmat.T)
 
 
-class PLChromNoise(NoiseComponent):
+class PLChromNoise(CorrelatedNoiseComponent):
     """Model of a radio frequency-dependent noise with a power-law spectrum and arbitrary chromatic index.
 
     Such variations are usually attributed to time-variable scattering in the
@@ -684,7 +726,7 @@ class PLChromNoise(NoiseComponent):
         return np.dot(Fmat * phi[None, :], Fmat.T)
 
 
-class PLRedNoise(NoiseComponent):
+class PLRedNoise(CorrelatedNoiseComponent):
     """Timing noise with a power-law spectrum.
 
     Over the long term, pulsars are observed to experience timing noise
