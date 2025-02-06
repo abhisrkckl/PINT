@@ -2143,8 +2143,6 @@ class GLSFitter(Fitter):
                     phiinv = np.concatenate((phiinv, 1 / phi))
                     M = np.hstack((M, Mn))
 
-            ntmpar = len(fitp)
-
             # normalize the design matrix
             M, norm = normalize_designmatrix(M, params)
             self.fac = norm
