@@ -33,17 +33,20 @@ class NoiseComponent(Component):
         self.dm_covariance_matrix_funcs_component = []
         self.basis_funcs = []
 
+    @property
+    def introduces_correlated_errors(self) -> bool:
+        return isinstance(self, CorrelatedNoiseComponent)
+
 
 class WhiteNoiseComponent(NoiseComponent):
     """Abstract base class for all white noise components."""
 
-    introduces_correlated_errors = False
+    pass
 
 
 class CorrelatedNoiseComponent(NoiseComponent):
     """Abstract base class for all correlated noise components."""
 
-    introduces_correlated_errors = True
     is_time_correlated = False
 
     def get_noise_basis(self, toas):
