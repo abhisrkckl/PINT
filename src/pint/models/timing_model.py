@@ -1801,6 +1801,15 @@ class TimingModel:
         result = [nf(toas)[1] for nf in self.basis_funcs]
         return np.hstack(list(result))
 
+    def full_basis_weight(self, toas: TOAs) -> np.ndarray:
+        """Returns the joint weight vector for all timing and noise components.
+        The weights of the timing model parameters are set to be a large constant,
+        representing an uninformative prior."""
+        npar_tm = len(self.free_params) + int("PhaseOffset" not in self.components)
+        phi_tm = np.ones(npar_tm) * 1e40
+        phi_nm = self.noise_model_basis_weight(toas)
+        return np.hstack((phi_tm, phi_nm)) if phi_nm is not None else phi_tm
+
     def noise_model_dimensions(self, toas: TOAs) -> Dict[str, Tuple[int, int]]:
         """Number of basis functions for each noise model component.
 
