@@ -183,6 +183,17 @@ class Residuals:
         return self.time_resids
 
     @property
+    def noise_resids(self) -> Dict[str, u.Quantity]:
+        return {
+            component.category: (
+                component.get_noise_basis(self.toas)
+                @ self.noise_ampls[component.category]
+            )
+            for component in self.model.NoiseComponent_list
+            if component.introduces_correlated_errors
+        }
+
+    @property
     def resids_value(self) -> np.ndarray:
         """Residuals in seconds, with the units stripped."""
         return self.resids.to_value(self.unit)
