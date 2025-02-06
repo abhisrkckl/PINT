@@ -1238,6 +1238,43 @@ class WidebandTOAResiduals(CombinedResiduals):
         dres = self.dm.calc_resids().to_value(dmu)
         return np.hstack((tres, dres)).astype(float)
 
+    @property
+    def noise_resids(self) -> Dict[str, u.Quantity]:
+        return {
+            component.category: (
+                component.get_noise_basis(self.toas)
+                @ self.toa.noise_ampls[component.category]
+            )
+            for component in self.model.NoiseComponent_list
+            if component.introduces_correlated_errors
+        }
+
+    @property
+    def dm_noise_resids(self) -> Dict[str, u.Quantity]:
+        return {
+            component.category: (
+                (
+                    component.get_dm_noise_basis(self.toas)
+                    @ self.toa.noise_ampls[component.category]
+                )
+                * (dmu / u.s)
+            )
+            for component in self.model.NoiseComponent_list
+            if component.introduces_correlated_errors
+        }
+
+    def calc_whitened_resids(self):
+        return (
+            (self.toa.time_resids - sum(self.noise_resids.values()))
+            / self.toa.get_data_error()
+        ).to(u.dimensionless_unscaled)
+
+    def calc_whitened_dm_resids(self):
+        return (
+            (self.dm.resids - sum(self.dm_noise_resids.values()))
+            / self.dm.get_data_error()
+        ).to(u.dimensionless_unscaled)
+
     def calc_chi2(self, full_cov=False) -> float:
         """Return the weighted chi-squared for the model and toas.
 
