@@ -200,6 +200,9 @@ class ModelBuilder:
         ):
             selected.add("SolarSystemShapiro")
 
+        if "PhaseOffset" not in selected:
+            selected.add("PhaseOffset")
+
         # Report conflict
         if len(conflict) != 0:
             self._report_conflict(conflict)
