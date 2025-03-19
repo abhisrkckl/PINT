@@ -2,6 +2,7 @@
 Interactive emulator of tempo2 plk
 """
 
+import contextlib
 import copy
 import os
 import sys
@@ -12,6 +13,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pint.fitter
 from pint.models.dispersion_model import Dispersion
 
 from pint.models.parameter import funcParameter
@@ -106,6 +108,13 @@ nb_fitters = [
     "DownhillWLSFitter",
     "DownhillGLSFitter",
 ]
+
+with contextlib.suppress(ImportError):
+    from pyvela.fitter import VelaFitter
+
+    pint.fitter.VelaFitter = VelaFitter
+    wb_fitters += ["VelaFitter"]
+    nb_fitters += ["VelaFitter"]
 
 icon_img = os.path.join(os.path.split(__file__)[0], "PINT_LOGO_128trans.gif")
 
