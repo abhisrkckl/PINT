@@ -790,21 +790,23 @@ class TimingModel:
         # In Powell fitter this sometimes fails because after some iterations the values change from
         # plain float to Quantities. No idea why.
         for k, v in fitp.items():
-            p = getattr(self, k)
-            if isinstance(v, (Parameter, prefixParameter)):
-                if v.value is None:
-                    raise ValueError(f"Parameter {v} is unset")
-                p.value = v.value
-            elif isinstance(v, u.Quantity):
-                p.value = v.to_value(p.units)
-            else:
-                p.value = v
+            if k in self:
+                p = self[k]
+                if isinstance(v, (Parameter, prefixParameter)):
+                    if v.value is None:
+                        raise ValueError(f"Parameter {v} is unset")
+                    p.value = v.value
+                elif isinstance(v, u.Quantity):
+                    p.value = v.to_value(p.units)
+                else:
+                    p.value = v
 
     def set_param_uncertainties(self, fitp: Dict[str, float]) -> None:
         """Set the model parameters to the value contained in the input dict."""
         for k, v in fitp.items():
-            p = getattr(self, k)
-            p.uncertainty = v if isinstance(v, u.Quantity) else v * p.units
+            if k in self:
+                p = getattr(self, k)
+                p.uncertainty = v if isinstance(v, u.Quantity) else v * p.units
 
     @property_exists
     def components(self) -> Dict[str, "Component"]:
