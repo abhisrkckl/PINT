@@ -11,12 +11,11 @@ from pinttestdata import datadir
 
 
 def test_barytoa():
-    os.chdir(datadir)
     # This par file has a very simple model in it
-    m = get_model("slug.par")
+    m = get_model(datadir / "slug.par")
 
     # This .tim file has TOAs at the barycenter, and at infinite frequency
-    t = pint.toa.get_TOAs("slug.tim")
+    t = pint.toa.get_TOAs(datadir / "slug.tim")
 
     rs = pint.residuals.Residuals(t, m).time_resids
 
