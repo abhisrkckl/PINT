@@ -37,5 +37,6 @@ the released changes.
 - `find_empty_masks` can now handle SWX models
 - `photonphase` crash when launched with `--absphase --polycos`
 - Removed ORBWAVE parameters from `BinaryBTPiecewise` 
+- `TOAs.get_summary()` now includes DM information for wideband TOAs.
 ### Removed
 - Broken script `event_optimize_multiple`
