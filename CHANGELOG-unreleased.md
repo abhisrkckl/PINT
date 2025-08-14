@@ -39,5 +39,6 @@ the released changes.
 - Removed ORBWAVE parameters from `BinaryBTPiecewise` 
 - `TOAs.get_summary()` now includes DM information for wideband TOAs.
 - `pintk.Pulsar.print_chi2()` method
+- Set tcb2tdb factors for solar wind GP parameters
 ### Removed
 - Broken script `event_optimize_multiple`
