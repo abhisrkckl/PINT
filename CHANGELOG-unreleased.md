@@ -22,8 +22,6 @@ the released changes.
 - Parallel execution and work stealing in CI tests
 - Chromatic exponential dip model
 - Make `WidebandTOAResiduals.noise_resids` available as a `@property`
-- Make whitened residuals available pre-fit
-- Whitened wideband residuals
 ### Fixed
 - `TimingModel.total_dm()` now returns zero when no DM component is present in the model.
 - Made `TimingModel.toa_covariance_matrix()` not explicitly dependent on `ScaleToaError`
@@ -37,8 +35,8 @@ the released changes.
 - `find_empty_masks` can now handle SWX models
 - `photonphase` crash when launched with `--absphase --polycos`
 - Removed ORBWAVE parameters from `BinaryBTPiecewise`
-- `TOAs.get_summary()` now includes DM information for wideband TOAs.
 - `pintk.Pulsar.print_chi2()` method
+- `TOAs.get_summary()` now includes DM information for wideband TOAs.
 - Set tcb2tdb factors for solar wind GP parameters
 ### Removed
 - Broken script `event_optimize_multiple`
