@@ -2090,7 +2090,7 @@ class GLSFitter(Fitter):
         return chi2
 
 
-class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
+class WidebandTOAFitter(Fitter):
     """A class to for fitting TOAs and other independent measured data.
 
     Currently this fitter is only capable of fitting sets of TOAs in which every
@@ -2114,64 +2114,17 @@ class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
 
     def __init__(
         self,
-        fit_data: TOAs,
+        toas: TOAs,
         model: TimingModel,
-        fit_data_names: List[str] = ["toa", "dm"],
         track_mode: Optional[Literal["use_pulse_numbers", "nearest"]] = None,
-        additional_args: dict = {},
     ):
         self.model_init = model
-        # Check input data and data_type
-        self.fit_data_names = fit_data_names
-        # convert the non tuple input to a tuple
-        if not isinstance(fit_data, (tuple, list)):
-            fit_data = [fit_data]
-        if not isinstance(fit_data[0], TOAs):
-            raise ValueError(
-                f"The first data set should be a TOAs object but is {fit_data[0]}."
-            )
-        if len(fit_data_names) == 0:
-            raise ValueError("Please specify the fit data.")
-        if len(fit_data) > 1 and len(fit_data_names) != len(fit_data):
-            raise ValueError(
-                "If one more data sets are provided, the fit "
-                "data have to match the fit data names."
-            )
-        self.fit_data = fit_data
-        if track_mode is not None:
-            if "toa" not in additional_args:
-                additional_args["toa"] = {}
-            additional_args["toa"]["track_mode"] = track_mode
-        self.additional_args = additional_args
-        # Get the makers for fitting parts.
-        self.reset_model()
-        self.resids_init = copy.deepcopy(self.resids)
-        self.designmatrix_makers = [
-            DesignMatrixMaker(data_resids.residual_type, data_resids.unit)
-            for data_resids in self.resids.residual_objs.values()
-        ]
-        # Add noise design matrix maker
-        self.noise_designmatrix_maker = DesignMatrixMaker("toa_noise", u.s)
-        #
-        self.covariancematrix_makers = [
-            CovarianceMatrixMaker(data_resids.residual_type, data_resids.unit)
-            for data_resids in self.resids.residual_objs.values()
-        ]
+        self.model = copy.deepcopy(model)
+        self.toas = toas
         self.is_wideband = True
-        self.method = "General_Data_Fitter"
-
-    @property
-    def toas(self):
-        return self.fit_data[0]
-
-    def make_combined_residuals(self, add_args={}, model=None):
-        """Make the combined residuals between TOA residual and DM residual."""
-        return WidebandTOAResiduals(
-            self.toas,
-            self.model if model is None else model,
-            toa_resid_args=add_args.get("toa", {}),
-            dm_resid_args=add_args.get("dm", {}),
-        )
+        self.method = "wideband_gls"
+        self.track_mode = track_mode
+        self.update_resids()
 
     def reset_model(self):
         """Reset the current model to the initial model."""
@@ -2179,89 +2132,10 @@ class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
         self.update_resids()
         self.fitresult = []
 
-    def make_resids(self, model):
-        """Update the residuals. Run after updating a model parameter."""
-        return self.make_combined_residuals(add_args=self.additional_args, model=model)
-
-    def get_designmatrix(self):
-        design_matrixs = []
-        fit_params = self.model.free_params
-        if len(self.fit_data) == 1:
-            design_matrixs.extend(
-                dmatrix_maker(self.fit_data[0], self.model, fit_params, offset=True)
-                for dmatrix_maker in self.designmatrix_makers
-            )
-        else:
-            design_matrixs.extend(
-                dmatrix_maker(self.fit_data[ii], self.model, fit_params, offset=True)
-                for ii, dmatrix_maker in enumerate(self.designmatrix_makers)
-            )
-        return combine_design_matrices_by_quantity(design_matrixs)
-
-    def get_noise_covariancematrix(self):
-        # TODO This needs to be more general
-        cov_matrixs = []
-        if len(self.fit_data) == 1:
-            cov_matrixs.extend(
-                cmatrix_maker(self.fit_data[0], self.model)
-                for cmatrix_maker in self.covariancematrix_makers
-            )
-        else:
-            cov_matrixs.extend(
-                cmatrix_maker(self.fit_data[ii], self.model)
-                for ii, cmatrix_maker in enumerate(self.covariancematrix_makers)
-            )
-        return combine_covariance_matrix(cov_matrixs)
-
-    def get_data_uncertainty(self, data_name, data_obj):
-        """Get the data uncertainty from the data  object.
-
-        Note
-        ----
-        TODO, make this more general.
-        """
-        func_map = {"toa": "get_errors", "dm": "get_dm_errors"}
-        error_func_name = func_map[data_name]
-        if hasattr(data_obj, error_func_name):
-            return getattr(data_obj, error_func_name)()
-        else:
-            raise ValueError("No method to access data error is provided.")
-
-    def scaled_all_sigma(self):
-        """Scale all data's uncertainty.
-
-        If the function of scaled_`data`_sigma is not given, it will just
-        return the original data uncertainty.
-        """
-        scaled_sigmas = []
-        sigma_units = []
-        for ii, fd_name in enumerate(self.fit_data_names):
-            func_name = f"scaled_{fd_name}_uncertainty"
-            sigma_units.append(self.resids.residual_objs[fd_name].unit)
-            if hasattr(self.model, func_name):
-                scale_func = getattr(self.model, func_name)
-                if len(self.fit_data) == 1:
-                    scaled_sigmas.append(scale_func(self.fit_data[0]))
-                else:
-                    scaled_sigmas.append(scale_func(self.fit_data[ii]))
-            else:
-                if len(self.fit_data) == 1:
-                    original_sigma = self.get_data_uncertainty(
-                        fd_name, self.fit_data[0]
-                    )
-                else:
-                    original_sigma = self.get_data_uncertainty(
-                        fd_name, self.fit_data[ii]
-                    )
-                scaled_sigmas.append(original_sigma)
-
-        scaled_sigmas_no_unit = []
-        for ii, scaled_sigma in enumerate(scaled_sigmas):
-            if hasattr(scaled_sigma, "unit"):
-                scaled_sigmas_no_unit.append(scaled_sigma.to_value(sigma_units[ii]))
-            else:
-                scaled_sigmas_no_unit.append(scaled_sigma)
-        return np.hstack(scaled_sigmas_no_unit)
+    def make_resids(self, model: TimingModel) -> Residuals:
+        return WidebandTOAResiduals(
+            toas=self.toas, model=model, toa_resid_args={"track_mode": self.track_mode}
+        )
 
     def fit_toas(
         self,
@@ -2269,85 +2143,36 @@ class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
         threshold: float = 0,
         full_cov: bool = False,
         debug=False,
-    ) -> float:
-        """Carry out a generalized least-squares fitting procedure.
-
-        The algorithm here is essentially the same as used in
-        :func:`pint.fitter.GLSFitter.fit_toas`. See that function
-        for details.
-
-        Parameters
-        ----------
-        maxiter: int
-            How many times to run the linear least-squares fit, re-evaluating
-            the derivatives at each step.
-        threshold: float
-            When to start discarding singular values. Default is 1-e14*max(M.shape).
-        full_cov: bool
-            full_cov determines which calculation is used.
-        """
-        # Maybe change the name to do_fit?
-        # check that params of timing model have necessary components
+    ):
         self.model.validate()
         self.model.validate_toas(self.toas)
+        self.update_resids()
         chi2 = 0
-        for i in range(maxiter):
+        for _ in range(maxiter):
             fitp = self.model.get_params_dict("free", "quantity")
             fitpv = self.model.get_params_dict("free", "num")
             fitperrs = self.model.get_params_dict("free", "uncertainty")
 
-            # Define the linear system
-            d_matrix = self.get_designmatrix()
-            M, params, units = (
-                d_matrix.matrix,
-                d_matrix.derivative_params,
-                d_matrix.param_units,
-            )
-
-            # Get residuals and TOA uncertainties in seconds
-            if i == 0:
-                self.update_resids()
-            # Since the residuals may not have the same unit. Thus the residual here
-            # has no unit.
-            residuals = self.resids._combined_resids
-
-            # get any noise design matrices and weight vectors
-            if not full_cov:
-                # We assume the fit date type is toa
-                Mn = self.noise_designmatrix_maker(self.toas, self.model)
-                phi = self.model.noise_model_basis_weight(self.toas)
-                phiinv = np.zeros(M.shape[1])
-                if Mn is not None and phi is not None:
-                    phiinv = np.concatenate((phiinv, 1 / phi))
-                    new_d_matrix = combine_design_matrices_by_param(d_matrix, Mn)
-                    M, params, units = (
-                        new_d_matrix.matrix,
-                        new_d_matrix.derivative_params,
-                        new_d_matrix.param_units,
-                    )
-
-            ntmpar = self.model.ntmpar
-
-            # normalize the design matrix
-            M, norm = normalize_designmatrix(M, params)
-            self.fac = norm
+            y = self.resids.calc_wideband_resids()
 
             # compute covariance matrices
             if full_cov:
-                cov = self.get_noise_covariancematrix().matrix
-                cf = scipy.linalg.cho_factor(cov)
-                cm = scipy.linalg.cho_solve(cf, M)
-                mtcm = np.dot(M.T, cm)
-                mtcy = np.dot(cm.T, residuals)
-                # mtcm, mtcy = get_gls_mtcm_mtcy_fullcov(cov, M, residuals)
+                M, params, units_t, units_d = self.model.wideband_designmatrix(
+                    self.toas
+                )
+                M, norm = normalize_designmatrix(M, params)
+                C = self.model.wideband_covariance_matrix(self.toas)
+                mtcm, mtcy = get_gls_mtcm_mtcy_fullcov(C, M, y)
             else:
-                phiinv /= norm**2
-                Nvec = self.scaled_all_sigma() ** 2
-                cinv = 1 / Nvec
-                mtcm = np.dot(M.T, cinv[:, None] * M)
-                mtcm += np.diag(phiinv)
-                mtcy = np.dot(M.T, cinv * residuals)
-                # mtcm, mtcy = get_gls_mtcm_mtcy(phiinv, Nvec, M, residuals)
+                M, params, units_t, units_d = self.model.full_wideband_designmatrix(
+                    self.toas
+                )
+                M, norm = normalize_designmatrix(M, params)
+                phiinv = 1 / self.model.full_basis_weight(self.toas) / norm**2
+                Nvec = self.model.scaled_wideband_uncertainty(self.toas) ** 2
+                mtcm, mtcy = get_gls_mtcm_mtcy(phiinv, Nvec, M, y)
+
+            self.fac = norm
 
             if threshold <= 0:
                 try:
@@ -2357,21 +2182,13 @@ class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
             else:
                 xvar, xhat = _solve_svd(mtcm, mtcy, threshold, params)
 
-            newres = residuals - np.dot(M, xhat)
-            # compute linearized chisq
-            if full_cov:
-                chi2 = np.dot(newres, scipy.linalg.cho_solve(cf, newres))
-            else:
-                chi2 = np.dot(newres, cinv * newres) + np.dot(xhat, phiinv * xhat)
-
             # compute absolute estimates, normalized errors, covariance matrix
             dpars = xhat / norm
             errs = np.sqrt(np.diag(xvar)) / norm
             covmat = (xvar / norm).T / norm
-            # TODO: seems like doing this on every iteration is wasteful, and we should just do it once and then update the matrix
             covariance_matrix_labels = {
                 param: (i, i + 1, unit)
-                for i, (param, unit) in enumerate(zip(params, units))
+                for i, (param, unit) in enumerate(zip(params, units_t))
             }
             # covariance matrix is 2D and symmetric
             covariance_matrix_labels = [covariance_matrix_labels] * covmat.ndim
@@ -2382,28 +2199,25 @@ class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
                 (covmat / errs).T / errs, covariance_matrix_labels
             )
 
-            # self.covariance_matrix = covmat
-            # self.correlation_matrix = (covmat / errs).T / errs
-
             for pn in fitp.keys():
                 uind = params.index(pn)  # Index of designmatrix
-                # Here we use design matrix's label, so the unit goes to normal.
-                # instead of un = 1 / (units[uind])
-                un = units[uind]
+                un = 1.0 / (units_t[uind])  # Unit in designmatrix
+                un *= u.s
                 pv, dpv = fitpv[pn] * fitp[pn].units, dpars[uind] * un
                 fitpv[pn] = np.longdouble((pv + dpv) / fitp[pn].units)
                 # NOTE We need some way to use the parameter limits.
                 fitperrs[pn] = errs[uind]
+
             newparams = dict(zip(list(fitp.keys()), list(fitpv.values())))
             self.set_params(newparams)
             self.update_resids()
-            # self.minimize_func(list(fitpv.values()), *list(fitp.keys()))
             # Update Uncertainties
             self.set_param_uncertainties(fitperrs)
 
             # Compute the noise realizations if possible
             if not full_cov:
                 noise_dims = self.model.noise_model_dimensions(self.toas)
+                ntmpar = self.model.ntmpar
                 noise_ampls = {}
                 for comp in noise_dims:
                     # The first column of designmatrix is "offset", add 1 to match
@@ -2418,6 +2232,7 @@ class WidebandTOAFitter(Fitter):  # Is GLSFitter the best here?
                 if debug:
                     setattr(self.resids, "norm", norm)
 
+        chi2 = self.resids.calc_chi2()
         self.update_model(chi2)
 
         return chi2
