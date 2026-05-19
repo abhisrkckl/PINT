@@ -16,4 +16,5 @@ the released changes.
 - `WidebandTOAFitter` raises a warning if the model has correlated errors (It used to give wrong results before).
 ### Fixed
 - When flags are created based off jumps uses strings instead of None
+- Make `get_prefix_timeranges` work for SWX.
 ### Removed
